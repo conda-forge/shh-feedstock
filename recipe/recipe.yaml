@@ -15,15 +15,19 @@ build:
     env:
       CARGO_PROFILE_RELEASE_LTO: fat
       CARGO_PROFILE_RELEASE_STRIP: symbols
+    interpreter: nu
     content:
-      - cargo auditable install --path=. --root="$PREFIX" --no-track --locked --bins --features=generate-extras
-      # generate manpage and shell completions
-      - mkdir -p "$PREFIX"/share/man/man1 "$PREFIX"/share/bash-completion/completions "$PREFIX"/share/fish/vendor_completions.d "$PREFIX"/share/zsh/site-functions
-      - '"$PREFIX"/bin/shh gen-man-pages                        "$PREFIX"/share/man/man1'
-      - '"$PREFIX"/bin/shh gen-shell-completions --shell=bash > "$PREFIX"/share/bash-completion/completions/shh'
-      - '"$PREFIX"/bin/shh gen-shell-completions --shell=fish > "$PREFIX"/share/fish/vendor_completions.d/shh.fish'
-      - '"$PREFIX"/bin/shh gen-shell-completions --shell=zsh  > "$PREFIX"/share/zsh/site-functions/_shh'
-      - cargo-bundle-licenses --format=yaml --output=./THIRDPARTY.yml
+      - let prefix = $env.LIBRARY_PREFIX? | default $env.PREFIX
+      # build main app and generate license data
+      - ^cargo auditable install --path=. --root=($prefix) --no-track --locked --bins --features=generate-extras
+      - ^cargo-bundle-licenses --format=yaml --output=THIRDPARTY.yml
+      # generate shell completions and manpages
+      - if: build_platform == host_platform
+        then:
+          - ^shh gen-shell-completions --shell=bash | save --force ($prefix)/share/bash-completion/completions/shh
+          - ^shh gen-shell-completions --shell=fish | save --force ($prefix)/share/fish/vendor_completions.d/shh.fish
+          - ^shh gen-shell-completions --shell=zsh  | save --force ($prefix)/share/zsh/site-functions/_shh
+          - ^shh gen-man-pages                                     ($prefix)/share/man/man1
   skip:
     - not linux
 
@@ -34,6 +38,7 @@ requirements:
     - ${{ compiler('rust') }}
     - cargo-auditable
     - cargo-bundle-licenses
+    - nushell
   host:
     - strace
 
